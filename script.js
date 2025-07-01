@@ -93,7 +93,7 @@ async function loadJobsFromFirestore() {
     const jobsContainer = document.getElementById("jobs-container");
     jobsContainer.innerHTML = '<div class="loading-spinner"><i class="fas fa-spinner fa-spin"></i> Caricamento lavori...</div>';
     
-    const snapshot = await db.collection("jobs").get();
+    const snapshot = await db.collection("jobs").orderBy("createdAt", "desc").get();
     const jobs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     
     renderJobs(jobs);
@@ -123,7 +123,7 @@ function renderJobs(jobs) {
       <h3>${job.title}</h3>
       <p class="description">${job.description}</p>
       <div class="job-meta">
-        <span class="pay"><strong>${job.pay}</strong></span>
+        <span class="category">${job.category}</span>
         <span class="location">📍 ${job.location.address || job.location.coordinates}</span>
       </div>
       ${currentUser ? `<button class="apply-btn" onclick="applyForJob('${job.id}')">Partecipa</button>` : ""}
@@ -169,20 +169,29 @@ async function setupJobForm() {
 
     const title = document.getElementById("job-title").value;
     const description = document.getElementById("job-description").value;
-    const location = document.getElementById("job-location").value;
+    const locationInput = document.getElementById("job-location").value;
     const category = document.getElementById("job-category").value;
 
+    if (!title || !description || !locationInput) {
+      formMessage.textContent = "Compila tutti i campi obbligatori!";
+      formMessage.className = "form-message error";
+      return;
+    }
+
     try {
-      // Qui potresti aggiungere la geocodifica dell'indirizzo
+      // Geocodifica l'indirizzo (semplificato)
+      const geocodedLocation = await geocodeAddress(locationInput);
+      
       const jobData = {
         title,
         description,
         location: {
-          address: location,
-          coordinates: "45.4642,9.1900" // Sostituire con geocodifica reale
+          address: locationInput,
+          latitude: geocodedLocation.lat,
+          longitude: geocodedLocation.lng
         },
         category,
-        pay: "Da concordare", // Potresti aggiungere un campo nel form
+        pay: "Da concordare",
         authorId: currentUser.uid,
         authorName: currentUser.displayName || currentUser.email,
         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
@@ -200,9 +209,35 @@ async function setupJobForm() {
       // Torna alla home
       window.location.hash = "#home";
     } catch (error) {
+      console.error("Errore:", error);
       formMessage.textContent = "Errore: " + error.message;
       formMessage.className = "form-message error";
     }
+  });
+}
+
+// Funzione semplificata per geocodifica
+function geocodeAddress(address) {
+  return new Promise((resolve, reject) => {
+    if (!window.google || !window.google.maps) {
+      console.warn("Google Maps non disponibile, usando coordinate di default");
+      resolve({ lat: 45.4642, lng: 9.1900 });
+      return;
+    }
+
+    const geocoder = new google.maps.Geocoder();
+    geocoder.geocode({ address }, (results, status) => {
+      if (status === "OK" && results[0]) {
+        const location = results[0].geometry.location;
+        resolve({ 
+          lat: location.lat(), 
+          lng: location.lng() 
+        });
+      } else {
+        console.warn("Geocodifica fallita, usando coordinate di default");
+        resolve({ lat: 45.4642, lng: 9.1900 });
+      }
+    });
   });
 }
 
