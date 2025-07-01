@@ -134,3 +134,75 @@ auth.onAuthStateChanged(user => {
   }
   renderJobs(); // Aggiorna la lista lavoretti
 });
+// ==================== GOOGLE MAPS ==================== //
+let map;
+let markers = [];
+
+function initMap() {
+  // Centra la mappa sulla posizione dell'utente (o su una default)
+  const defaultLocation = { lat: 45.4642, lng: 9.1900 }; // Milano
+  map = new google.maps.Map(document.getElementById("map"), {
+    zoom: 13,
+    center: defaultLocation,
+  });
+
+  // Prova a geolocalizzare l'utente
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const userLocation = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        };
+        map.setCenter(userLocation);
+        addUserMarker(userLocation);
+      },
+      () => alert("Geolocalizzazione non disponibile. Mostro mappa generica.")
+    );
+  }
+
+  // Aggiungi marcatori per i lavoretti (esempio)
+  addJobMarkers();
+}
+
+function addUserMarker(position) {
+  new google.maps.Marker({
+    position,
+    map,
+    title: "La tua posizione",
+    icon: "https://maps.google.com/mapfiles/ms/icons/blue-dot.png",
+  });
+}
+
+function addJobMarkers() {
+  // Esempio: aggiungi marcatori dall'array jobs
+  jobs.forEach((job) => {
+    if (!job.location) return;
+    
+    const marker = new google.maps.Marker({
+      position: job.location,
+      map,
+      title: job.title,
+    });
+
+    // Info Window con dettagli
+    const infoWindow = new google.maps.InfoWindow({
+      content: `
+        <div class="map-popup">
+          <h3>${job.title}</h3>
+          <p>${job.description}</p>
+          <p><strong>${job.pay}</strong></p>
+          ${auth.currentUser ? `<button onclick="applyForJob(${job.id})">Partecipa</button>` : ''}
+        </div>
+      `,
+    });
+
+    marker.addListener("click", () => infoWindow.open(map, marker));
+    markers.push(marker);
+  });
+}
+
+// Chiamata iniziale (assicurati che l'API sia caricata)
+document.addEventListener("DOMContentLoaded", () => {
+  if (window.google) initMap(); // Se l'API è già caricata
+});
