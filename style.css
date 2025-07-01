@@ -88,3 +88,10 @@ footer {
   background: var(--secondary-color);
   color: white;
 }
+.job-card {
+  background: white;
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1rem 0;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
