@@ -13,41 +13,132 @@
   <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-firestore-compat.js"></script>
   
-  <!-- API Google Maps (solo qui, non ripeterla) -->
+  <!-- API Google Maps -->
   <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAJ3MmTNaJg-jjlu8uHWnQ19WcaCg4nHWA&libraries=places&callback=initMap" async defer></script>
+  
+  <!-- Font Awesome per icone -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
 </head>
 
 <body>
   <header>
     <nav>
-      <a href="#home">Home</a>
-      <a href="#task-list">Lavoretti</a>
+      <a href="#home" id="home-link">Home</a>
+      <a href="#add-job" id="add-job-link">Aggiungi Lavoro</a>
       <a href="#contact">Contatti</a>
-      <button id="auth-toggle" style="display: none;">Accedi</button>
+      <div id="auth-buttons">
+        <button id="login-btn" class="auth-btn">Accedi</button>
+        <button id="logout-btn" class="auth-btn" style="display: none;">Esci</button>
+      </div>
     </nav>
     <h1>AiutoVicino</h1>
     <p>Trova o offri aiuto nel tuo quartiere</p>
   </header>
 
   <main>
+    <!-- Sezione Home/Lavori -->
+    <section id="home">
+      <h2>Lavori disponibili nella tua zona</h2>
+      <div id="jobs-container" class="jobs-grid">
+        <!-- Lavori verranno caricati dinamicamente qui -->
+        <div class="loading-spinner">
+          <i class="fas fa-spinner fa-spin"></i> Caricamento lavori...
+        </div>
+      </div>
+    </section>
+
+    <!-- Sezione Aggiungi Lavoro -->
+    <section id="add-job" style="display: none;">
+      <h2>Aggiungi un nuovo lavoro</h2>
+      <form id="job-form">
+        <div class="form-group">
+          <label for="job-title">Titolo:</label>
+          <input type="text" id="job-title" required placeholder="Es. Giardinaggio" />
+        </div>
+        
+        <div class="form-group">
+          <label for="job-description">Descrizione:</label>
+          <textarea id="job-description" required placeholder="Descrivi il lavoro da fare..."></textarea>
+        </div>
+        
+        <div class="form-group">
+          <label for="job-location">Località:</label>
+          <input type="text" id="job-location" required placeholder="Indirizzo o zona" />
+        </div>
+        
+        <div class="form-group">
+          <label for="job-category">Categoria:</label>
+          <select id="job-category">
+            <option value="giardinaggio">Giardinaggio</option>
+            <option value="fai-da-te">Fai da te</option>
+            <option value="traslochi">Traslochi</option>
+            <option value="altro">Altro</option>
+          </select>
+        </div>
+        
+        <button type="submit" id="submit-job" class="submit-btn">
+          <i class="fas fa-plus-circle"></i> Pubblica lavoro
+        </button>
+        <div id="job-form-message" class="form-message"></div>
+      </form>
+    </section>
+
+    <!-- Sezione Login/Registrazione -->
+    <section id="auth-modal" class="modal" style="display: none;">
+      <div class="modal-content">
+        <span class="close-modal">&times;</span>
+        <div id="auth-forms">
+          <!-- Form Login -->
+          <div id="login-form">
+            <h3>Accedi</h3>
+            <form>
+              <div class="form-group">
+                <label for="login-email">Email:</label>
+                <input type="email" id="login-email" required />
+              </div>
+              <div class="form-group">
+                <label for="login-password">Password:</label>
+                <input type="password" id="login-password" required />
+              </div>
+              <button type="submit" class="auth-submit-btn">Accedi</button>
+            </form>
+            <p>Non hai un account? <a href="#" id="show-register">Registrati</a></p>
+          </div>
+          
+          <!-- Form Registrazione -->
+          <div id="register-form" style="display: none;">
+            <h3>Registrati</h3>
+            <form>
+              <div class="form-group">
+                <label for="register-name">Nome:</label>
+                <input type="text" id="register-name" required />
+              </div>
+              <div class="form-group">
+                <label for="register-email">Email:</label>
+                <input type="email" id="register-email" required />
+              </div>
+              <div class="form-group">
+                <label for="register-password">Password:</label>
+                <input type="password" id="register-password" required />
+              </div>
+              <button type="submit" class="auth-submit-btn">Registrati</button>
+            </form>
+            <p>Hai già un account? <a href="#" id="show-login">Accedi</a></p>
+          </div>
+        </div>
+        <div id="auth-message" class="form-message"></div>
+      </div>
+    </section>
+
     <!-- Sezione Mappa -->
     <section id="map-section">
-      <h2>Lavoretti nella tua zona</h2>
+      <h2>Visualizza sulla mappa</h2>
       <div id="map" style="height: 400px; width: 100%; border-radius: 8px;"></div>
     </section>
 
-    <!-- Sezione Autenticazione -->
-    <div id="auth-section">
-      <!-- Form di registrazione/login... -->
-    </div>
-
-    <!-- Sezione Dashboard -->
-    <div id="dashboard-section" style="display: none;">
-      <!-- Contenuto dashboard... -->
-    </div>
-
     <!-- Sezione Contatti -->
     <section id="contact">
+      <h2>Contattaci</h2>
       <!-- Form contatti... -->
     </section>
   </main>
@@ -56,7 +147,24 @@
     <p>© 2024 AiutoVicino. Tutti i diritti riservati.</p>
   </footer>
 
-  <!-- Script principale (deve essere l'ultimo elemento prima di </body>) -->
+  <!-- Script principale -->
   <script src="script.js"></script>
+  
+  <script>
+    // Inizializzazione Firebase (sostituisci con la tua configurazione)
+    const firebaseConfig = {
+      apiKey: "AIzaSyAJ3MmTNaJg-jjlu8uHWnQ19WcaCg4nHWA",
+      authDomain: "aiutovicino.firebaseapp.com",
+      projectId: "aiutovicino",
+      storageBucket: "aiutovicino.appspot.com",
+      messagingSenderId: "1234567890",
+      appId: "1:1234567890:web:abcdef123456"
+    };
+    
+    // Inizializza Firebase
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+  </script>
 </body>
 </html>
