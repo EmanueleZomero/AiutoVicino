@@ -114,4 +114,81 @@ function renderJobs() {
       <h3>${job.title}</h3>
       <p>${job.description}</p>
       <p><strong>Compenso: ${job.pay}</strong></p>
-      <p>Tipo: ${job.type === "request" ? "📢 Richie
+      <p>Tipo: ${job.type === "request" ? "📢 Richiesta" : "🛠️ Offerta"}</p>
+      ${auth.currentUser ? `<button class="apply-btn" onclick="applyForJob(${job.id})">Partecipa</button>` : ""}
+    </div>
+  `).join("");
+}
+
+function applyForJob(jobId) {
+  const job = jobs.find(j => j.id === jobId);
+  if (!auth.currentUser) {
+    alert("Devi accedere per partecipare!");
+    return;
+  }
+  alert(`Hai chiesto di aiutare con: "${job.title}". Ti contatteremo via email.`);
+}
+
+// ==================== AUTENTICAZIONE ==================== //
+function setupAuth() {
+  // Registrazione
+  document.getElementById("signup-form")?.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const email = document.getElementById("signup-email").value;
+    const password = document.getElementById("signup-password").value;
+
+    auth.createUserWithEmailAndPassword(email, password)
+      .then(() => {
+        alert("Registrazione completata!");
+        document.getElementById("signup-form").reset();
+      })
+      .catch(error => alert("Errore: " + error.message));
+  });
+
+  // Login
+  document.getElementById("login-form")?.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const email = document.getElementById("login-email").value;
+    const password = document.getElementById("login-password").value;
+
+    auth.signInWithEmailAndPassword(email, password)
+      .then(() => alert("Accesso effettuato!"))
+      .catch(error => alert("Errore: " + error.message));
+  });
+
+  // Logout
+  document.getElementById("logout-btn")?.addEventListener("click", () => {
+    auth.signOut().catch(error => alert("Errore: " + error.message));
+  });
+}
+
+// ==================== GESTIONE STATO UTENTE ==================== //
+function handleAuthState(user) {
+  if (user) {
+    console.log("Utente loggato:", user.email);
+    document.getElementById("auth-section")?.style.display = "none";
+    document.getElementById("dashboard-section")?.style.display = "block";
+  } else {
+    console.log("Nessun utente loggato");
+    document.getElementById("auth-section")?.style.display = "block";
+    document.getElementById("dashboard-section")?.style.display = "none";
+  }
+  renderJobs();
+}
+
+// ==================== EVENT LISTENERS ==================== //
+document.addEventListener("DOMContentLoaded", () => {
+  setupAuth();
+  auth.onAuthStateChanged(handleAuthState);
+  
+  // Contatto
+  document.getElementById("contact-form")?.addEventListener("submit", (e) => {
+    e.preventDefault();
+    alert("Messaggio inviato! Grazie per il tuo feedback.");
+    e.target.reset();
+  });
+
+  // Mappa
+  if (window.google) initMap();
+  else console.warn("Google Maps API non caricata");
+});
