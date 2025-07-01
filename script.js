@@ -16,24 +16,7 @@ const db = firebase.firestore();
 // ==================== VARIABILI GLOBALI ==================== //
 let map;
 let markers = [];
-const jobs = [
-  {
-    id: 1,
-    title: "Tagliare il prato",
-    description: "Giardino di 50 mq",
-    pay: "€20",
-    type: "request",
-    location: { lat: 45.4642, lng: 9.1900 }
-  },
-  {
-    id: 2,
-    title: "Pulizie domestiche",
-    description: "Appartamento 3 stanze",
-    pay: "€15/h",
-    type: "offer",
-    location: { lat: 45.4630, lng: 9.1850 }
-  }
-];
+let currentUser = null;
 
 // ==================== FUNZIONI MAPPA ==================== //
 function initMap() {
@@ -52,11 +35,11 @@ function initMap() {
         };
         map.setCenter(userLocation);
         addUserMarker(userLocation);
-        addJobMarkers();
+        loadJobsFromFirestore();
       },
       () => {
         alert("Geolocalizzazione non disponibile. Mostro mappa generica.");
-        addJobMarkers();
+        loadJobsFromFirestore();
       }
     );
   }
@@ -71,14 +54,14 @@ function addUserMarker(position) {
   });
 }
 
-function addJobMarkers() {
+function addJobMarkers(jobs) {
   clearMarkers();
   
   jobs.forEach((job) => {
     if (!job.location) return;
     
     const marker = new google.maps.Marker({
-      position: job.location,
+      position: new google.maps.LatLng(job.location.latitude, job.location.longitude),
       map,
       title: job.title,
     });
@@ -89,7 +72,7 @@ function addJobMarkers() {
           <h3>${job.title}</h3>
           <p>${job.description}</p>
           <p><strong>${job.pay}</strong></p>
-          ${auth.currentUser ? `<button onclick="applyForJob(${job.id})">Partecipa</button>` : ''}
+          ${currentUser ? `<button onclick="applyForJob('${job.id}')">Partecipa</button>` : ''}
         </div>
       `,
     });
@@ -104,91 +87,230 @@ function clearMarkers() {
   markers = [];
 }
 
-// ==================== FUNZIONI LAVORETTI ==================== //
-function renderJobs() {
+// ==================== FUNZIONI LAVORI ==================== //
+async function loadJobsFromFirestore() {
+  try {
+    const jobsContainer = document.getElementById("jobs-container");
+    jobsContainer.innerHTML = '<div class="loading-spinner"><i class="fas fa-spinner fa-spin"></i> Caricamento lavori...</div>';
+    
+    const snapshot = await db.collection("jobs").get();
+    const jobs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    
+    renderJobs(jobs);
+    addJobMarkers(jobs);
+  } catch (error) {
+    console.error("Errore nel caricamento lavori:", error);
+    document.getElementById("jobs-container").innerHTML = '<p class="error">Errore nel caricamento dei lavori</p>';
+  }
+}
+
+function renderJobs(jobs) {
   const jobsContainer = document.getElementById("jobs-container");
   if (!jobsContainer) return;
+
+  if (jobs.length === 0) {
+    jobsContainer.innerHTML = `
+      <div class="no-jobs">
+        <p>Nessun lavoro disponibile al momento</p>
+        ${currentUser ? '<a href="#add-job" class="add-job-link">Aggiungi un lavoro</a>' : ''}
+      </div>
+    `;
+    return;
+  }
 
   jobsContainer.innerHTML = jobs.map(job => `
     <div class="job-card" data-id="${job.id}">
       <h3>${job.title}</h3>
-      <p>${job.description}</p>
-      <p><strong>Compenso: ${job.pay}</strong></p>
-      <p>Tipo: ${job.type === "request" ? "📢 Richiesta" : "🛠️ Offerta"}</p>
-      ${auth.currentUser ? `<button class="apply-btn" onclick="applyForJob(${job.id})">Partecipa</button>` : ""}
+      <p class="description">${job.description}</p>
+      <div class="job-meta">
+        <span class="pay"><strong>${job.pay}</strong></span>
+        <span class="location">📍 ${job.location.address || job.location.coordinates}</span>
+      </div>
+      ${currentUser ? `<button class="apply-btn" onclick="applyForJob('${job.id}')">Partecipa</button>` : ""}
     </div>
   `).join("");
 }
 
-function applyForJob(jobId) {
-  const job = jobs.find(j => j.id === jobId);
-  if (!auth.currentUser) {
-    alert("Devi accedere per partecipare!");
+async function applyForJob(jobId) {
+  if (!currentUser) {
+    showAuthModal();
     return;
   }
-  alert(`Hai chiesto di aiutare con: "${job.title}". Ti contatteremo via email.`);
+
+  try {
+    await db.collection("applications").add({
+      jobId,
+      userId: currentUser.uid,
+      userName: currentUser.displayName || currentUser.email,
+      appliedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    alert("La tua candidatura è stata inviata con successo!");
+  } catch (error) {
+    alert("Errore nell'invio della candidatura: " + error.message);
+  }
+}
+
+// ==================== AGGIUNTA LAVORO ==================== //
+async function setupJobForm() {
+  const jobForm = document.getElementById("job-form");
+  if (!jobForm) return;
+
+  jobForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    
+    if (!currentUser) {
+      showAuthModal();
+      return;
+    }
+
+    const formMessage = document.getElementById("job-form-message");
+    formMessage.textContent = "";
+    formMessage.className = "form-message";
+
+    const title = document.getElementById("job-title").value;
+    const description = document.getElementById("job-description").value;
+    const location = document.getElementById("job-location").value;
+    const category = document.getElementById("job-category").value;
+
+    try {
+      // Qui potresti aggiungere la geocodifica dell'indirizzo
+      const jobData = {
+        title,
+        description,
+        location: {
+          address: location,
+          coordinates: "45.4642,9.1900" // Sostituire con geocodifica reale
+        },
+        category,
+        pay: "Da concordare", // Potresti aggiungere un campo nel form
+        authorId: currentUser.uid,
+        authorName: currentUser.displayName || currentUser.email,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        status: "available"
+      };
+
+      await db.collection("jobs").add(jobData);
+      
+      formMessage.textContent = "Lavoro pubblicato con successo!";
+      formMessage.className = "form-message success";
+      jobForm.reset();
+      
+      // Ricarica i lavori
+      loadJobsFromFirestore();
+      // Torna alla home
+      window.location.hash = "#home";
+    } catch (error) {
+      formMessage.textContent = "Errore: " + error.message;
+      formMessage.className = "form-message error";
+    }
+  });
 }
 
 // ==================== AUTENTICAZIONE ==================== //
 function setupAuth() {
-  // Registrazione
-  document.getElementById("signup-form")?.addEventListener("submit", (e) => {
+  // Mostra/nascondi modale
+  document.getElementById("login-btn")?.addEventListener("click", showAuthModal);
+  document.getElementById("logout-btn")?.addEventListener("click", () => auth.signOut());
+  document.querySelector(".close-modal")?.addEventListener("click", hideAuthModal);
+  document.getElementById("show-register")?.addEventListener("click", (e) => {
     e.preventDefault();
-    const email = document.getElementById("signup-email").value;
-    const password = document.getElementById("signup-password").value;
-
-    auth.createUserWithEmailAndPassword(email, password)
-      .then(() => {
-        alert("Registrazione completata!");
-        document.getElementById("signup-form").reset();
-      })
-      .catch(error => alert("Errore: " + error.message));
+    document.getElementById("login-form").style.display = "none";
+    document.getElementById("register-form").style.display = "block";
+  });
+  document.getElementById("show-login")?.addEventListener("click", (e) => {
+    e.preventDefault();
+    document.getElementById("register-form").style.display = "none";
+    document.getElementById("login-form").style.display = "block";
   });
 
   // Login
-  document.getElementById("login-form")?.addEventListener("submit", (e) => {
+  document.getElementById("login-form")?.addEventListener("submit", async (e) => {
     e.preventDefault();
     const email = document.getElementById("login-email").value;
     const password = document.getElementById("login-password").value;
+    const authMessage = document.getElementById("auth-message");
 
-    auth.signInWithEmailAndPassword(email, password)
-      .then(() => alert("Accesso effettuato!"))
-      .catch(error => alert("Errore: " + error.message));
+    try {
+      await auth.signInWithEmailAndPassword(email, password);
+      hideAuthModal();
+    } catch (error) {
+      authMessage.textContent = "Errore: " + error.message;
+      authMessage.className = "form-message error";
+    }
   });
 
-  // Logout
-  document.getElementById("logout-btn")?.addEventListener("click", () => {
-    auth.signOut().catch(error => alert("Errore: " + error.message));
+  // Registrazione
+  document.getElementById("register-form")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const email = document.getElementById("register-email").value;
+    const password = document.getElementById("register-password").value;
+    const name = document.getElementById("register-name").value;
+    const authMessage = document.getElementById("auth-message");
+
+    try {
+      const userCredential = await auth.createUserWithEmailAndPassword(email, password);
+      await userCredential.user.updateProfile({ displayName: name });
+      hideAuthModal();
+    } catch (error) {
+      authMessage.textContent = "Errore: " + error.message;
+      authMessage.className = "form-message error";
+    }
   });
+}
+
+function showAuthModal() {
+  document.getElementById("auth-modal").style.display = "block";
+  document.getElementById("login-form").style.display = "block";
+  document.getElementById("register-form").style.display = "none";
+  document.getElementById("auth-message").textContent = "";
+}
+
+function hideAuthModal() {
+  document.getElementById("auth-modal").style.display = "none";
+  document.getElementById("login-form").reset();
+  document.getElementById("register-form").reset();
 }
 
 // ==================== GESTIONE STATO UTENTE ==================== //
 function handleAuthState(user) {
+  currentUser = user;
+  const loginBtn = document.getElementById("login-btn");
+  const logoutBtn = document.getElementById("logout-btn");
+  const addJobLink = document.getElementById("add-job-link");
+
   if (user) {
     console.log("Utente loggato:", user.email);
-    document.getElementById("auth-section")?.style.display = "none";
-    document.getElementById("dashboard-section")?.style.display = "block";
+    if (loginBtn) loginBtn.style.display = "none";
+    if (logoutBtn) logoutBtn.style.display = "block";
+    if (addJobLink) addJobLink.style.display = "block";
   } else {
     console.log("Nessun utente loggato");
-    document.getElementById("auth-section")?.style.display = "block";
-    document.getElementById("dashboard-section")?.style.display = "none";
+    if (loginBtn) loginBtn.style.display = "block";
+    if (logoutBtn) logoutBtn.style.display = "none";
+    if (addJobLink) addJobLink.style.display = "none";
   }
-  renderJobs();
+
+  loadJobsFromFirestore();
 }
 
-// ==================== EVENT LISTENERS ==================== //
+// ==================== ROUTING SEMPLICE ==================== //
+function handleHashChange() {
+  const hash = window.location.hash;
+  document.getElementById("home").style.display = hash === "#home" || hash === "" ? "block" : "none";
+  document.getElementById("add-job").style.display = hash === "#add-job" ? "block" : "none";
+}
+
+// ==================== INIZIALIZZAZIONE ==================== //
 document.addEventListener("DOMContentLoaded", () => {
   setupAuth();
+  setupJobForm();
   auth.onAuthStateChanged(handleAuthState);
-  
-  // Contatto
-  document.getElementById("contact-form")?.addEventListener("submit", (e) => {
-    e.preventDefault();
-    alert("Messaggio inviato! Grazie per il tuo feedback.");
-    e.target.reset();
-  });
+  window.addEventListener("hashchange", handleHashChange);
+  handleHashChange(); // Esegui all'inizio per gestire l'hash corrente
 
-  // Mappa
-  if (window.google) initMap();
-  else console.warn("Google Maps API non caricata");
+  if (window.google) {
+    initMap();
+  } else {
+    console.warn("Google Maps API non caricata");
+  }
 });
