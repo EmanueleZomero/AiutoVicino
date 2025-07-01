@@ -2,28 +2,46 @@
 <html lang="it">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>AiutoVicino</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AiutoVicino - Trova e offri lavoretti nel tuo quartiere</title>
+  <meta name="description" content="Piattaforma per trovare e offrire piccoli lavori locali." />
   <link rel="stylesheet" href="style.css" />
+  <link rel="icon" href="favicon.ico" type="image/x-icon" />
 </head>
 <body>
   <header>
-    <h1>Benvenuto su AiutoVicino</h1>
-    <p>La tua app per trovare aiuti e lavoretti nel quartiere</p>
+    <nav>
+      <a href="#home">Home</a>
+      <a href="#task-list">Lavoretti</a>
+      <a href="#contact">Contatti</a>
+    </nav>
+    <h1>AiutoVicino</h1>
+    <p>Trova o offri aiuto nel tuo quartiere</p>
   </header>
+
   <main>
     <section id="task-list">
       <h2>Lavoretti disponibili</h2>
-      <ul>
-        <li>Tagliare erba</li>
-        <li>Pulizie casa</li>
-        <li>Spesa per anziani</li>
-      </ul>
+      <div class="job-grid" id="jobs-container">
+        <!-- I lavoretti verranno caricati dinamicamente con JavaScript -->
+      </div>
     </section>
+
     <section id="contact">
       <h2>Contattaci</h2>
-      <p>Email: info@aiutovicino.it</p>
+      <form id="contact-form">
+        <input type="text" placeholder="Nome" required />
+        <input type="email" placeholder="Email" required />
+        <textarea placeholder="Scrivi il tuo messaggio..." required></textarea>
+        <button type="submit">Invia</button>
+      </form>
     </section>
   </main>
+
+  <footer>
+    <p>© 2024 AiutoVicino. Tutti i diritti riservati.</p>
+  </footer>
+
+  <script src="script.js"></script>
 </body>
 </html>
